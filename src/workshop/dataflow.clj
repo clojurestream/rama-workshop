@@ -3,6 +3,10 @@
         [com.rpl.rama path]))
 
 (comment
+  (use 'com.rpl.rama)
+  (use 'com.rpl.rama.path)
+  (require '[com.rpl.rama.ops :as ops])
+
   (deframafn foo
     []
     (:> 1))
