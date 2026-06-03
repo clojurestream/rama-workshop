@@ -30,3 +30,9 @@
     {:depot (foreign-depot @ipc/IPC module-name "*depot")
      :counts (foreign-pstate @ipc/IPC module-name "$$counts")
      }))
+
+(comment
+  (require '[workshop.stream :as stream] :reload)
+  (def m (stream/launch!))
+  (foreign-append! (:depot m) (stream/->Item "a" "b"))
+  )
