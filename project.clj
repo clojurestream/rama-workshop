@@ -9,6 +9,6 @@
     {:id  "maven-releases"
      :url "https://nexus.redplanetlabs.com/repository/maven-public-releases"}]]
   :profiles {:dev      {:resource-paths ["test/resources/"]}
-             :provided {:dependencies [[com.rpl/rama "1.6.0"]
+             :provided {:dependencies [[com.rpl/rama "1.8.0"]
                                        [org.clojure/clojure "1.12.4"]]}}
 )
