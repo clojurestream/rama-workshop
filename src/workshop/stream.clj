@@ -35,4 +35,5 @@
   (require '[workshop.stream :as stream] :reload)
   (def m (stream/launch!))
   (foreign-append! (:depot m) (stream/->Item "a" "b"))
+  (foreign-select-one (keypath "a") (:counts m))
   )
