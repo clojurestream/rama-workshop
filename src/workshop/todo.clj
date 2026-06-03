@@ -2,9 +2,7 @@
   (:use [com.rpl.rama]
         [com.rpl.rama path])
   (:require
-   [com.rpl.rama.aggs :as aggs]
-   [com.rpl.rama.test :as rtest]
-   [workshop.ipc :as ipc])
+   [com.rpl.rama.aggs :as aggs])
   (:import
    [java.util
     UUID]))
@@ -72,34 +70,81 @@
      (source> *user-depot :> {:keys [*username] :as *data})
       (<<subsource *data
        (case> CreateUser :> {:keys [*name]})
-      ;; TODO
+        (local-select> (view contains? *username) $$profiles :> *exists?)
+        (<<if *exists?
+          (ack-return> {:error "User already exists"})
+         (else>)
+          (System/currentTimeMillis :> *created-at-millis)
+          (local-transform> [(keypath *username)
+                             (termval {:name *name
+                                       :created-at-millis *created-at-millis})]
+                            $$profiles))
 
        (case> EditProfileField :> {:keys [*key *value]})
-        ;; TODO
+        (local-transform> [(must *username) (keypath *key) (termval *value)] $$profiles)
 
        (case> ShareList :> {:keys [*list-id *to-username]})
-        ;; TODO
+        ;; filter that this user is still an owner
+        (local-select> [(keypath *username) :lists (set-elem *list-id)] $$profiles)
+        (|hash *list-id)
+        ;; filter that list still exists
+        (local-select> (must *list-id) $$lists)
+        (local-transform> [(keypath *list-id) :owners NONE-ELEM (termval *to-username)] $$lists)
+        (|hash *to-username)
+        (local-transform> [(keypath *to-username) :lists NONE-ELEM (termval *list-id)] $$profiles)
       )
 
      (source> *list-depot :> {:keys [*list-id] :as *data})
       (<<subsource *data
        (case> CreateList :> {:keys [*username *name]})
-        ;; TODO
+        (System/currentTimeMillis :> *created-at-millis)
+        (local-transform>
+         [(keypath *list-id) nil?
+          (termval {:name *name :created-at-millis *created-at-millis :owners #{*username}})]
+         $$lists)
+        (|hash *username)
+        (local-transform> [(keypath *username) :lists NONE-ELEM (termval *list-id)] $$profiles)
 
        (case> RemoveList :> {:keys [*username]})
-      ;: TODO
+        (local-transform> [(keypath *list-id) :owners (set-elem *username) NONE>] $$lists)
+        (local-select> [(keypath *list-id) :owners (view count)] $$lists :> *num-owners)
+        (<<if (zero? *num-owners)
+          (local-transform> [(keypath *list-id) NONE>] $$lists))
+        (|hash *username)
+        (local-transform> [(keypath *username) :lists (set-elem *list-id) NONE>] $$profiles)
 
-       (case> AddTodo :> {:keys [*content]})
-      ;; TODO
+       (case> AddTodo :> {:keys [*todo-id *content]})
+        (->TodoItem *todo-id *content false :> *todo)
+        (local-transform> [(must *list-id) :items AFTER-ELEM (termval *todo)] $$lists)
 
        (case> EditTodo :> {:keys [*todo-id *key *value]})
-      ;; TODO
+        (local-transform> [(must *list-id)
+                           :items
+                           ALL
+                           (selected? :todo-id (pred= *todo-id))
+                           (keypath *key)
+                           (termval *value)]
+                          $$lists)
 
        (case> DeleteTodo :> {:keys [*todo-id]})
-      ;; TODO
+        (local-transform> [(must *list-id)
+                           :items
+                           ALL
+                           (selected? :todo-id (pred= *todo-id))
+                           NONE>]
+                          $$lists)
+
 
        (case> MoveTodo :> {:keys [*todo-id *to-index]})
-        ;; TODO
+        (local-select> [(must *list-id) :items (view count)] $$lists :> *size)
+        (filter> (< *to-index *size))
+        (local-transform> [(must *list-id)
+                           :items
+                           INDEXED-VALS
+                           (selected? LAST :todo-id (pred= *todo-id))
+                           FIRST
+                           (termval *to-index)]
+                          $$lists)
       )
     )))
 
@@ -110,6 +155,17 @@
       (/ 60)
       long))
 
+(def +telemetry-combiner
+  (combiner
+   (fn [m1 m2]
+     (merge-with
+      (fn [m3 m4]
+        (merge-with + m3 m4))
+      m1
+      m2))
+   :init-fn
+   (fn [] {})))
+
 (defn create-analytics-topology!
   [topologies]
   (let [mb (microbatch-topology topologies "analytics")]
@@ -119,11 +175,24 @@
                      (map-schema
                       Class ; operation type
                       Long ; count
-                     )})
+                     )}
+                    {:global? true})
 
     (<<sources mb
      (source> *list-depot :> %mb)
-      ;; TODO
+      (current-minute-bucket :> *bucket)
+      (%mb :> *data)
+      (class *data :> *class)
+      (|global)
+      (+compound $$list-ops-telemetry {*bucket {*class (aggs/+count)}})
+
+      ; (current-minute-bucket :> *bucket)
+      ; (<<batch
+      ;   (%mb :> *data)
+      ;   (class *data :> *class)
+      ;   (identity {*bucket {*class 1}} :> *m)
+      ;   (|global)
+      ;   (+telemetry-combiner $$list-ops-telemetry *m))
     )
   ))
 
@@ -134,15 +203,3 @@
 
   (create-interactive-topology! topologies)
   (create-analytics-topology! topologies))
-
-
-(defn launch! []
-  (ipc/reset-ipc!)
-  (rtest/launch-module! @ipc/IPC TodoAppModule {:tasks 4 :threads 2})
-  (let [module-name (get-module-name TodoAppModule)]
-    {:user-depot (foreign-depot @ipc/IPC module-name "*user-depot")
-     :list-depot (foreign-depot @ipc/IPC module-name "*list-depot")
-     :profiles (foreign-pstate @ipc/IPC module-name "$$profiles")
-     :lists (foreign-pstate @ipc/IPC module-name "$$lists")
-     :list-ops-telemetry (foreign-pstate @ipc/IPC module-name "$$list-ops-telemetry")
-     }))

@@ -18,6 +18,8 @@
 
 (defmodule MultiDepotModule
   [setup topologies]
+  (declare-depot setup *hash-depot (hash-by :id))
+  (declare-depot setup *global-depot :random {:global? true})
   ;; TODO add two depots:
   ;;  - *hash-depot, with hash partitioning on key :id
   ;;  - *global-depot, declared as global

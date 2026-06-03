@@ -36,20 +36,18 @@
              (foreign-select-one [(keypath "alice") (submap [:name])] profiles)))
       (is (foreign-select-one [(keypath "alice") :created-at-millis] profiles))
 
-      #_
+
         (testing "Profile edit"
           (foreign-append! user-depot (todo/->EditProfileField "alice" :location "Honolulu"))
           (is (= {:name "Alice Smith" :location "Honolulu"}
                  (foreign-select-one [(keypath "alice") (submap [:name :location])] profiles))))
 
-      #_
         (testing "Create list"
           (foreign-append! list-depot (todo/->CreateList list1 "alice" "List 1"))
           (is (= "List 1" (foreign-select-one [(keypath list1) :name] lists)))
           (is (= [list1] (foreign-select [(keypath "alice") :lists ALL] profiles)))
           (is (= ["alice"] (foreign-select [(keypath list1) :owners ALL] lists))))
 
-      #_
         (testing "Multiple created lists"
           (foreign-append! list-depot (todo/->CreateList list2 "bob" "List 2"))
           (is (= [list1] (foreign-select [(keypath "alice") :lists ALL] profiles)))
@@ -57,13 +55,11 @@
           (is (= [list2] (foreign-select [(keypath "bob") :lists ALL] profiles)))
           (is (= ["bob"] (foreign-select [(keypath list2) :owners ALL] lists))))
 
-      #_
         (testing "Multiple lists owned by one user"
           (foreign-append! list-depot (todo/->CreateList list3 "alice" "List 3"))
           (is (= #{list1 list3} (set (foreign-select [(keypath "alice") :lists ALL] profiles))))
           (is (= ["alice"] (foreign-select [(keypath list3) :owners ALL] lists))))
 
-      #_
         (testing "Shared list"
           (foreign-append! user-depot (todo/->ShareList "alice" list1 "charlie"))
           (is (= [list1] (foreign-select [(keypath "charlie") :lists ALL] profiles)))
@@ -74,14 +70,12 @@
           (is (= #{"alice" "bob" "charlie"}
                  (set (foreign-select [(keypath list1) :owners ALL] lists)))))
 
-      #_
         (testing "Share unowned list"
           (foreign-append! user-depot (todo/->ShareList "alice" list2 "charlie"))
           (is (= #{list1 list3} (set (foreign-select [(keypath "alice") :lists ALL] profiles))))
           (is (= [list1] (foreign-select [(keypath "charlie") :lists ALL] profiles)))
           (is (= ["bob"] (foreign-select [(keypath list2) :owners ALL] lists))))
 
-      #_
         (testing "Add todos"
           (foreign-append! list-depot (todo/->AddTodo list1 todo1 "abc"))
           (foreign-append! list-depot (todo/->AddTodo list1 todo2 "def"))
@@ -91,7 +85,6 @@
                   (todo/->TodoItem todo3 "ghi" false)]
                  (foreign-select [(keypath list1) :items ALL] lists))))
 
-      #_
         (testing "Edit todo"
           (foreign-append! list-depot (todo/->EditTodo list1 todo2 :complete? true))
           (foreign-append! list-depot (todo/->EditTodo list1 todo1 :content "ABC"))
@@ -100,7 +93,6 @@
                   (todo/->TodoItem todo3 "ghi" false)]
                  (foreign-select [(keypath list1) :items ALL] lists))))
 
-      #_
         (testing "Move todo"
           (foreign-append! list-depot (todo/->MoveTodo list1 todo2 0))
           (is (= [(todo/->TodoItem todo2 "def" true)
@@ -123,14 +115,12 @@
                   (todo/->TodoItem todo2 "def" true)]
                  (foreign-select [(keypath list1) :items ALL] lists))))
 
-      #_
         (testing "Delete todo"
           (foreign-append! list-depot (todo/->DeleteTodo list1 todo3))
           (is (= [(todo/->TodoItem todo1 "ABC" false)
                   (todo/->TodoItem todo2 "def" true)]
                  (foreign-select [(keypath list1) :items ALL] lists))))
 
-      #_
         (testing "Remove list"
           (foreign-append! list-depot (todo/->RemoveList list1 "alice"))
           (is (= [(todo/->TodoItem todo1 "ABC" false)
@@ -152,8 +142,6 @@
           (is (nil? (foreign-select-one (keypath list1) lists)))
           (is (= [list2] (foreign-select [(keypath "bob") :lists ALL] profiles))))
 
-
-      #_
         (testing "Telemetry test"
           (rtest/wait-for-microbatch-processed-count ipc module-name "analytics" 16)
           (is (= {workshop.todo.CreateList 3
